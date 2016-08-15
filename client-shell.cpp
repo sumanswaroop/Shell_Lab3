@@ -89,7 +89,7 @@ struct cmd{
 
 struct execcmd{
 	int type;
-	char **argv;
+	char **argv = new char*[64];
 };
 struct redircmd {
 	int type;
@@ -133,16 +133,60 @@ void run(void *cmd)
 			//check if no command
 			if(ecmd-> argv[0] == NULL)
 				fprintf(stderr, "Exec Error\n");
+			else if(strcmp(ecmd->argv[0],"getpl"))
+			{	
+				int num = 1;
+				while(ecmd->argv[num]!=NULL)
+				{
+					if(fork()==0)
+					{
+						execl(executables[string(ecmd->argv[0])].c_str(), ecmd->argv[num], server_ip, server_port, "nodisplay", (char *)0);		
+					}
+					num++;
+				}
+				for(int i = 0;i<num;i++)wait(NULL);
+			}
 			else if(fork()==0) 
-				execv(ecmd->argv[0], ecmd->argv);
+				execv(executables[string(ecmd->argv[0])].c_str(), ecmd->argv);
 			else wait(&status);
 			break;
 		case PIPE:
+			pcmd = (struct pipecmd *)cmd;
+			if( pipe(p)<0)
+			{
+					fprintf(stderr, "Pipe Initiation Error");
+					return;
+			}
+			if(fork()==0)
+			{
+				close(1);
+				dup(p[1]);
+				close(p[0]);
+				close(p[1]);
+				run(pcmd->left);
+			}
+			if(fork()==0)
+			{
+				close(0);
+				dup(p[0]);
+				close(p[0]);
+				close(p[1]);
+				run(pcmd->right);
+			}
+			close(p[0]);
+			close(p[1]);
+			wait();
+			wait();
+			break;
+
+
 			break;
 		case REDIR:
+
 			break;
 		case BACK:
 			break;
+
 	}
 }
 //
@@ -183,7 +227,7 @@ struct cmd * parse(char **tokens)
 	//token like piping rediricting
 	int tok = gettoken(sep);
 	struct execcmd cmd;
-
+	struct pipecmd pcmd;
 	switch(tok)
 	{
 		case EXEC:
@@ -191,17 +235,20 @@ struct cmd * parse(char **tokens)
 			if(strcmp(tokens[0],"getfl")==0)
 			{
 				int i = 0;
+				//set up arguments
 				while(tokens[i]!=NULL)
 				{	
-					cmd.argv[i] = new char[MAX_INPUT_SIZE];
-					*cmd.argv[i]=*tokens[i];
+					cmd.argv[i] = new char[MAX_TOKEN_SIZE];
+					strcpy(cmd.argv[i], tokens[i]);
 					i++;
 				}
-				cmd.argv[i] = new char[MAX_INPUT_SIZE];
-				*cmd.argv[i] = *server_ip;
-				cmd.argv[i+1] = new char[MAX_INPUT_SIZE];
-				*cmd.argv[i+1] = *server_port;
-				cmd.argv[i+2] = NULL;
+				cmd.argv[i] = new char[MAX_TOKEN_SIZE];
+				strcpy(cmd.argv[i],server_ip);
+				cmd.argv[i+1] = new char[MAX_TOKEN_SIZE];
+				strcpy(cmd.argv[i+1], server_port);
+				cmd.argv[i+2] = new char[MAX_TOKEN_SIZE];
+				strcpy(cmd.argv[i+2], "display");
+				cmd.argv[i+3] = NULL;
 				run((void *)&cmd);
 				
 			}
@@ -209,32 +256,69 @@ struct cmd * parse(char **tokens)
 			{	
 				int i =1;
 				cmd.argv[0] = new char[MAX_INPUT_SIZE];
-				*cmd.argv[0] = *tokens[0];
+				strcpy(cmd.argv[0],tokens[0]);
 				cmd.argv[1] = new char[MAX_INPUT_SIZE];
+				cmd.argv[2] = new char[MAX_INPUT_SIZE];
+				cmd.argv[3] = new char[MAX_INPUT_SIZE];
+				strcpy(cmd.argv[1], server_ip);
+				strcpy(cmd.argv[2], server_port);
+
 				while(tokens[i]!=NULL)
 				{
-					*cmd.argv[1] = *tokens[i];
+					strcpy(cmd.argv[1] ,tokens[i]);
 					run((void *)&cmd);
 				}
 			}
-			else if(strcmp(tokens[0],"getpl")==0){
-
+			else if(strcmp(tokens[0],"getpl")==0)
+			{
+				int i = 0;
+				//set up arguments
+				while(tokens[i]!=NULL)
+				{	
+					cmd.argv[i] = new char[MAX_TOKEN_SIZE];
+					strcpy(cmd.argv[i], tokens[i]);
+					i++;
+				}
+				cmd.argv[i]=NULL;
+				run((void *)&cmd);
 			}
 			else{ 
 				int i = 0;
 				while(tokens[i]!=NULL)
 					{	
 						cmd.argv[i] = new char[MAX_INPUT_SIZE];
-						*cmd.argv[i] = *tokens[i];
+						strcpy(cmd.argv[i] , tokens[i]);
 						i++;
 					}
 				cmd.argv[i] = NULL;
 			}
 			run((void *)&cmd);
 			break;
-		
+		case PIPE:
+			pcmd.type = PIPE;
+			
+			while(tokens[i]!= sep[0])
+			{
+
+			}
+		 
+
+		case REDIR:
+
+
+
+		 break;
 
 	}
+
+	//free all memory
+	int j = 0;
+	while(cmd.argv[j]!=NULL)
+	{
+		free(cmd.argv[j]);
+		j++;
+	}
+	free(cmd.argv);
 
 }
 
