@@ -8,6 +8,8 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <string.h>
+#include <string>
 
 #include "make-tokens.h"
 
@@ -34,7 +36,15 @@ typedef int (*FnPtr)(char **);
 #define BOLDMAGENTA "\033[1m\033[35m"      /* Bold Magenta */
 #define BOLDCYAN    "\033[1m\033[36m"      /* Bold Cyan */
 #define BOLDWHITE   "\033[1m\033[37m"      /* Bold White */
-
+//type
+#define EXEC 1
+#define PIPE 2
+#define REDIR 3
+#define BACK 4
+//server details
+char server_ip[8];
+int server_port = -1;
+int status;
 //define all builtins
 int cd_builtin(char **args)
 {
@@ -53,26 +63,135 @@ int cd_builtin(char **args)
 
 	return 0;
 }
+int server_setup(char **args)
+{	
+	if(args[1]==NULL || args[2] == NULL)
+	{	fprintf(stderr, "Invalid Arguments");
+		return -1;
+	}
+	strcpy(server_ip,args[1]);
+	server_port = atoi(args[2]);
+	return 0;
+}
 
 //map builtins
 void map_builtin(map<string , FnPtr > &builtins)
 {
 	builtins["cd"] = cd_builtin;
+	builtins["server"] = server_setup;
 }
 
+//commands struct
+
+struct cmd{
+	int type;
+};
+
+struct execcmd{
+	int type;
+	char *argv[MAX_TOKEN_SIZE];
+	char *eargv[MAX_TOKEN_SIZE];
+};
+struct redircmd {
+	int type;
+	//pointer to command
+	struct cmd *cmd;
+	//pointer to file argument
+	char *file;
+	char *efile;
+	//mode of redirection
+	int mode;
+	int fd;
+};
+
+struct pipecmd{
+	int type;
+	struct cmd *left;
+	struct cmd *right;
+};
+
+struct backcmd {
+	int type;
+	struct cmd *left;
+	struct cmd *right;
+};
+
+void run(struct cmd *cmd)
+{	
+	//pipe
+	int p[2]
+	if(cmd ==NULL)
+		exit(0);
+
+	switch(cmd->type)
+	{
+		case EXEC:
+			struct execcmd *ecmd = (struct execcmd *)cmd;
+			//check if no command
+			if(ecmd-> argv[0] == NULL)
+				fprintf(stderr, "Exec Error\n");
+			else if(fork()==0) 
+				execv(ecmd->argv[0], argv);
+			else wait(&status);
+		case PIPE:
+		case REDIR:
+		case BACK:
+	}
+}
+//Command Parsing
+char **type(char **start)
+{	
+	char **sep = start
+	while(sep!=NULL)
+	{
+		if(strcmp(start[0],'>' )==0)
+			return sep;
+		else if(strcmp(start[0], '|')==0)
+			return sep;
+		else if(strcmp(start[0],'getbg')==0)
+			return sep;
+		sep++;
+	}
+	return sep;
+}
+int gettoken(char **sep)
+{		
+	if(sep==NULL)
+		return EXEC;
+	if(strcmp(sep[0],'>')==0)
+		return REDIR;
+	else if(strcmp(sep[0],'|')==0)
+		return PIPE;
+	else if(strcmp(sep[0],'getbg')==0)
+		return BACK;
+}
+struct cmd * parse(char **tokens)
+{
+	char **sep = type(start);
+	int tok = gettoken(sep);
+	
+	struct *cmd = execcmd();
+	switch(tok)
+	{
+		case EXEC:
+			
+
+	}
+
+}
 
 int main()
 {
 	printf("SHELL::");
 
 	printf("Type exit to termminate shell\n");
-	//Get Current Working Directory
-	int dir_len = 64,command_len = 1024;
-	char cwd[dir_len];
-	char command[command_len];
+	//Current Working Directory
+	char cwd[MAX_TOKEN_SIZE];
+	//command
+	char command[MAX_INPUT_SIZE];
 		
 	char **tokens;
-	
+
 	//builtins mapping
 	map< string , FnPtr > builtins;
 	map_builtin(builtins);
@@ -80,16 +199,16 @@ int main()
 	while(1)
 	{	
 		//print directory
-		getcwd(cwd, dir_len);
+		getcwd(cwd, MAX_TOKEN_SIZE);
 		if(cwd==NULL)
 			fprintf(stderr,"Couldn't Initiate. Current Directory\n");
 		printf(BOLDWHITE "%s $ " RESET, cwd);
 		//Clear all streams
 		fflush(NULL);
 
-		
+
 		//Read a Command
-		if(fgets(command,1024,stdin)==NULL)
+		if(fgets(command,MAX_INPUT_SIZE,stdin)==NULL)
 			printf("Error reading from input");
 		//tokenize
 		tokens = tokenize(command);
@@ -100,8 +219,10 @@ int main()
 		{
 			(it->second)(tokens);
 		}
-		else
-			runcmd( parsecmd(tokens) );
+		else {
+			runcmd(tokens);
+		}
+			
 			
 
 		//free allocated memory
@@ -112,6 +233,12 @@ int main()
        	free(tokens);
      }
 
+     //exit
+     // while(waitpid(-1, ) >0){
+
+     // }
+
+     exit(0);
 		
 
 }
