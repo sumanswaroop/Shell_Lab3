@@ -43,7 +43,7 @@ typedef int (*FnPtr)(char **);
 #define BACK 4
 //server details
 char server_ip[8];
-int server_port = -1;
+char server_port[5];
 int status;
 //define all builtins
 int cd_builtin(char **args)
@@ -70,7 +70,7 @@ int server_setup(char **args)
 		return -1;
 	}
 	strcpy(server_ip,args[1]);
-	server_port = atoi(args[2]);
+	strcpy(server_port,args[2]);
 	return 0;
 }
 
@@ -89,8 +89,7 @@ struct cmd{
 
 struct execcmd{
 	int type;
-	char *argv[MAX_TOKEN_SIZE];
-	char *eargv[MAX_TOKEN_SIZE];
+	char **argv;
 };
 struct redircmd {
 	int type;
@@ -109,72 +108,131 @@ struct pipecmd{
 	struct cmd *left;
 	struct cmd *right;
 };
+void map_exec(map< string, string> &executables)
+{
+	executables["ls"] = "/bin/ls";
 
-struct backcmd {
-	int type;
-	struct cmd *left;
-	struct cmd *right;
-};
+}
 
-void run(struct cmd *cmd)
+
+void run(void *cmd)
 {	
 	//pipe
-	int p[2]
+	int p[2];
 	if(cmd ==NULL)
 		exit(0);
+	struct execcmd *ecmd;
+	
+	map<string ,string> executables;
+	map_exec(executables);
 
-	switch(cmd->type)
+	switch(((struct cmd *)cmd)->type)
 	{
 		case EXEC:
-			struct execcmd *ecmd = (struct execcmd *)cmd;
+			ecmd = (struct execcmd *)cmd;
 			//check if no command
 			if(ecmd-> argv[0] == NULL)
 				fprintf(stderr, "Exec Error\n");
 			else if(fork()==0) 
-				execv(ecmd->argv[0], argv);
+				execv(ecmd->argv[0], ecmd->argv);
 			else wait(&status);
+			break;
 		case PIPE:
+			break;
 		case REDIR:
+			break;
 		case BACK:
+			break;
 	}
 }
+//
+
 //Command Parsing
 char **type(char **start)
 {	
-	char **sep = start
-	while(sep!=NULL)
+	char **sep = start;
+	int i = 0;
+	while(sep[i]!=NULL)
 	{
-		if(strcmp(start[0],'>' )==0)
-			return sep;
-		else if(strcmp(start[0], '|')==0)
-			return sep;
-		else if(strcmp(start[0],'getbg')==0)
-			return sep;
-		sep++;
+		if(strcmp(sep[i],">" )==0)
+			return &sep[i];
+		else if(strcmp(sep[i], "|")==0)
+			return &sep[i];
+		else if(strcmp(sep[i],"getbg")==0)
+			return &sep[i];
+		sep[i];
+		i++;
 	}
-	return sep;
+	return &sep[i];
 }
 int gettoken(char **sep)
 {		
-	if(sep==NULL)
+	if(sep[0]==NULL)
 		return EXEC;
-	if(strcmp(sep[0],'>')==0)
+	if(strcmp(sep[0],">")==0)
 		return REDIR;
-	else if(strcmp(sep[0],'|')==0)
+	else if(strcmp(sep[0],"|")==0)
 		return PIPE;
-	else if(strcmp(sep[0],'getbg')==0)
+	else if(strcmp(sep[0],"getbg")==0)
 		return BACK;
 }
 struct cmd * parse(char **tokens)
-{
-	char **sep = type(start);
+{	
+	//seperator
+	char **sep = type(tokens);
+	//token like piping rediricting
 	int tok = gettoken(sep);
-	
-	struct *cmd = execcmd();
+	struct execcmd cmd;
+
 	switch(tok)
 	{
 		case EXEC:
-			
+			cmd.type = EXEC;
+			if(strcmp(tokens[0],"getfl")==0)
+			{
+				int i = 0;
+				while(tokens[i]!=NULL)
+				{	
+					cmd.argv[i] = new char[MAX_INPUT_SIZE];
+					*cmd.argv[i]=*tokens[i];
+					i++;
+				}
+				cmd.argv[i] = new char[MAX_INPUT_SIZE];
+				*cmd.argv[i] = *server_ip;
+				cmd.argv[i+1] = new char[MAX_INPUT_SIZE];
+				*cmd.argv[i+1] = *server_port;
+				cmd.argv[i+2] = NULL;
+				run((void *)&cmd);
+				
+			}
+			else if(strcmp(tokens[0],"getsq")==0)
+			{	
+				int i =1;
+				cmd.argv[0] = new char[MAX_INPUT_SIZE];
+				*cmd.argv[0] = *tokens[0];
+				cmd.argv[1] = new char[MAX_INPUT_SIZE];
+				while(tokens[i]!=NULL)
+				{
+					*cmd.argv[1] = *tokens[i];
+					run((void *)&cmd);
+				}
+			}
+			else if(strcmp(tokens[0],"getpl")==0){
+
+			}
+			else{ 
+				int i = 0;
+				while(tokens[i]!=NULL)
+					{	
+						cmd.argv[i] = new char[MAX_INPUT_SIZE];
+						*cmd.argv[i] = *tokens[i];
+						i++;
+					}
+				cmd.argv[i] = NULL;
+			}
+			run((void *)&cmd);
+			break;
+		
 
 	}
 
@@ -220,7 +278,7 @@ int main()
 			(it->second)(tokens);
 		}
 		else {
-			runcmd(tokens);
+			parse(tokens);
 		}
 			
 			
