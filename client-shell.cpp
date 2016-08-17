@@ -267,40 +267,26 @@ void run(void *cmd)
 //
 
 //Command Parsing
-char **type(char **start)
+int type(char **start)
 {	
 	char **sep = start;
 	int i = 0;
 	while(sep[i]!=NULL)
 	{
 		if(strcmp(sep[i],">" )==0)
-			return &sep[i];
+			return REDIR;
 		else if(strcmp(sep[i], "|")==0)
-			return &sep[i];
-		else if(strcmp(sep[i],"getbg")==0)
-			return &sep[i];
-		sep[i];
+			return PIPE;
 		i++;
 	}
-	return &sep[i];
+	return EXEC;
 }
-int gettoken(char **sep)
-{		
-	if(sep[0]==NULL)
-		return EXEC;
-	if(strcmp(sep[0],">")==0)
-		return REDIR;
-	else if(strcmp(sep[0],"|")==0)
-		return PIPE;
-	else if(strcmp(sep[0],"getbg")==0)
-		return EXEC;
-}
+
 struct cmd * parse(char **tokens)
 {	
 	//seperator
-	char **sep = type(tokens);
 	//token like piping rediricting
-	int tok = gettoken(sep);
+	int tok = type(tokens);
 	struct execcmd cmd;
 	struct pipecmd pcmd;
 	struct redircmd rcmd;
