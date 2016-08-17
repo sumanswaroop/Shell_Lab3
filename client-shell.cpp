@@ -82,8 +82,14 @@ int server_setup(char **args)
 	return 0;
 }
 int exit(char **args)
-{	
-	//reap all children
+{		
+	//kill all background process
+	set<int>::iterator it;
+	for(it = bpid.begin();it!=bpid.end();it++)
+	{
+		kill(*it, SIGTERM);
+	}
+	//reap all children process in same group
 	kill(0, SIGTERM);
 	exit(0);
 }
@@ -153,7 +159,7 @@ void run(void *cmd)
 
 					if(pid ==0)
 					{
-						execl("client", ecmd->argv[num], server_ip, server_port, "nodisplay", (char *)0);
+						execl("client", ecmd->argv[num], server_ip, server_port, "display", (char *)0);
 						fprintf(stderr,"Error On Executing the executable\n");
 						exit(1);	
 					}
@@ -306,9 +312,9 @@ struct cmd * parse(char **tokens)
 					strcpy(cmd.argv[i], tokens[i]);
 					i++;
 				}
-				if(i>2)
+				if(i!=2)
 				{
-					fprintf(stderr, "Invalid Arguments");
+					fprintf(stderr, "Invalid Number of Arguments");
 					break;
 				}
 
@@ -342,6 +348,12 @@ struct cmd * parse(char **tokens)
 					run((void *)&cmd);
 					i++;
 				}
+				if(i==1)
+				{
+					fprintf(stderr, "Invalid Number of Arguments");
+					break;
+				}
+
 			}
 			else if(strcmp(tokens[0],"getpl")==0)
 			{
@@ -353,6 +365,7 @@ struct cmd * parse(char **tokens)
 					strcpy(cmd.argv[i], tokens[i]);
 					i++;
 				}
+				if(i<2)
 				cmd.argv[i]=NULL;
 				run((void *)&cmd);
 			}
@@ -465,7 +478,7 @@ struct cmd * parse(char **tokens)
 			free(cmd.argv[j]);
 			j++;
 		}
-		free(cmd.argv);
+		if(cmd.argv!=NULL)free(cmd.argv);
 	}
 
 	//free memory
@@ -473,10 +486,10 @@ struct cmd * parse(char **tokens)
 	{
 		j = 0;
 		while(pcmd.left->argv[j]!=NULL)free(pcmd.left->argv[j]);
-		free(pcmd.left);cout<<"Yo"<<endl;
+		if(pcmd.left!=NULL)free(pcmd.left);
 		j = 0;
 		while(pcmd.right->argv[j]!=NULL)free(pcmd.right->argv[j]);
-		free(pcmd.right);
+		if(pcmd.right!=NULL)free(pcmd.right);
 	}
 
 	//free memory 
@@ -484,9 +497,9 @@ struct cmd * parse(char **tokens)
 	{
 		j = 0;
 		while(rcmd.argv[j]!=NULL)free(rcmd.argv[j]);
-		free(rcmd.argv);
+		if(rcmd.argv!=NULL)free(rcmd.argv);
 		j = 0;
-		free(rcmd.file);
+		if(rcmd.argv!=NULL)free(rcmd.file);
 	}
 }
 
@@ -559,8 +572,13 @@ int main()
 			printf("Error reading from input");
 		//tokenize
 		tokens = tokenize(command);
-
+		if(*tokens == NULL)
+		{
+			free(tokens);
+			continue;
+		}
 		//search if builtin
+
 		map<string , FnPtr >::iterator it = builtins.find(tokens[0]);
 		if( ( it ) != builtins.end() )
 		{
