@@ -6,6 +6,10 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <iostream>
+#include <cstdlib>
+
+using namespace std;
 
 void my_handler(int s){
            printf("Caught signal %d\n",s);
@@ -87,7 +91,7 @@ int main(int argc, char *argv[])
 
     int received_size=0,curr_size;
     //Receive File
-    while((curr_size=read(sock_fd, buffer, 1023)>0)){
+    while((curr_size=read(sockfd, buffer, 1023)>0)){
         if(display) {cout<<buffer;}
       received_size+=curr_size;
     }

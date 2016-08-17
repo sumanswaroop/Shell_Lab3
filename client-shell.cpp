@@ -11,6 +11,7 @@
 #include <string.h>
 #include <string>
 #include <fcntl.h>
+#include <iostream>
 
 #include "make-tokens.h"
 
@@ -123,7 +124,6 @@ void run(void *cmd)
 	struct pipecmd *pcmd;
 	struct redircmd *rcmd;
 	map<string ,string> executables;
-	map_exec(executables);
 
 	switch(((struct cmd *)cmd)->type)
 	{
@@ -309,6 +309,7 @@ struct cmd * parse(char **tokens)
 				{
 					strcpy(cmd.argv[1] ,tokens[i]);
 					run((void *)&cmd);
+					i++;
 				}
 			}
 			else if(strcmp(tokens[0],"getpl")==0)
@@ -422,30 +423,39 @@ struct cmd * parse(char **tokens)
 
 	}
 
+	int j;
 	//free all memory
-	int j = 0;
-	while(cmd.argv[j]!=NULL)
+	if(tok==EXEC)
 	{
-		free(cmd.argv[j]);
-		j++;
+		j = 0;
+		while(cmd.argv[j]!=NULL)
+		{
+			free(cmd.argv[j]);
+			j++;
+		}
+		free(cmd.argv);
 	}
-	free(cmd.argv);
+
 	//free memory
-	j = 0;
-	while(pcmd.left->argv[j]!=NULL)free(pcmd.left->argv[j]);
-	free(pcmd.left);
-	j = 0;
-	while(pcmd.right->argv[j]!=NULL)free(pcmd.right->argv[j]);
-	free(pcmd.left);
+	if(tok==PIPE)
+	{
+		j = 0;
+		while(pcmd.left->argv[j]!=NULL)free(pcmd.left->argv[j]);
+		free(pcmd.left);cout<<"Yo"<<endl;
+		j = 0;
+		while(pcmd.right->argv[j]!=NULL)free(pcmd.right->argv[j]);
+		free(pcmd.right);
+	}
 
 	//free memory 
-	j = 0;
-	while(rcmd.argv[j]!=NULL)free(rcmd.argv[j]);
-	free(rcmd.argv);
-	j = 0;
-	free(rcmd.file);
-
-
+	if(tok==REDIR)
+	{
+		j = 0;
+		while(rcmd.argv[j]!=NULL)free(rcmd.argv[j]);
+		free(rcmd.argv);
+		j = 0;
+		free(rcmd.file);
+	}
 }
 
 
