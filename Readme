@@ -1,0 +1,6 @@
+1)Dont delete make-tokens.h
+
+2)run make
+
+client executable should be named "client"
+make does it by default

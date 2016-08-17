@@ -1,0 +1,51 @@
+ls
+cat
+echo
+cd
+etc. linux commands
+
+1)
+
+getfl files/foo0.txt 
+
+=>displays the file contents
+=>pressing ctrl+c terminates this process only
+
+2)
+getbg files/foo0.txt
+
+=>runs process on background.
+=>On completion , outputs bg process completed
+=> pressing ctrl+c -> no effect
+
+getbg and then getfl 
+=>closes only the foreground process
+=> zombie reaped 
+
+3) getbg file
+getbg file
+and then exit
+=> no zombie process
+
+4) getpl file1 file2 ...
+
+=> waits until all process completes 
+=> pressing ctrl+c => prints downloaded bytes
+
+5) getsq file file0
+
+=> sequentially executes client executable and waits for each completion
+
+6) getfl files/file0.txt > 1.txt
+	=> redirects output to 1.txt
+	=> 1.txt may or maynot exist prior to this command
+7) getfl files/foo0.txt | grep aa
+	
+	=> prints all lines containing aa
+8) exit 
+=> kills all background process || prints downloaded bytes too
+=> no zombie
+
+9) getfl => prints error
+10) getfl arbit file => prints error
+11) server or port not set => prints error

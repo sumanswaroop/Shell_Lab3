@@ -71,21 +71,26 @@ int cd_builtin(char **args)
 
 	return 0;
 }
+//function to take setup server ip and port (in buit func)
 int server_setup(char **args)
 {	
+	//if insufficient arguments
 	if(args[1]==NULL || args[2] == NULL)
 	{	fprintf(stderr, "Invalid Arguments");
 		return -1;
 	}
+	//copy args provided to server ip and port resp
 	strcpy(server_ip,args[1]);
 	strcpy(server_port,args[2]);
 	return 0;
 }
+//handle exit in built
 int exit(char **args)
 {		
 	//kill all background process
 	set<int>::iterator it;
 	vector<int> temp;
+	//kill all background process
 	for(it = bpid.begin();it!=bpid.end();it++)
 	{
 		int a = *it;
@@ -93,8 +98,9 @@ int exit(char **args)
 		kill(a, SIGINT);
 		
 	}
+	//erase there pid from the background process list
 	for(int i = 0;i<temp.size();i++)bpid.erase(temp[i]);
-	//reap all children process in same group
+	//kill all children process in same group
 	kill(0, SIGTERM);
 	exit(0);
 }
@@ -107,23 +113,23 @@ void map_builtin(map<string , FnPtr > &builtins)
 }
 
 //commands struct
-
+//general cmd
 struct cmd{
 	int type;
 };
-
+//executable cmd
 struct execcmd{
 	int type;
 	char **argv = new char*[64];
 };
-
+//pipe command
 struct pipecmd
 {
 	int type;
 	struct execcmd *left;
 	struct execcmd *right;
 };
-
+//redirect command
 struct redircmd
 {
 	int type;
@@ -141,10 +147,11 @@ void run(void *cmd)
 	int pid;
 	if(cmd ==NULL)
 		exit(0);
+	//the three command type pointer
 	struct execcmd *ecmd;
 	struct pipecmd *pcmd;
 	struct redircmd *rcmd;
-
+	//check type of command
 	switch(((struct cmd *)cmd)->type)
 	{
 		case EXEC:
@@ -158,19 +165,23 @@ void run(void *cmd)
 			{	
 				int num = 1;
 				vector<int> pidlist;
+				//maintain a list of pids to wait for after running parallely 
 				while(ecmd->argv[num]!=NULL)
 				{	
+					//fork a child
 					pid=fork();
 
 					if(pid ==0)
-					{
+					{	//execute 
 						execl("client", "client", ecmd->argv[num], server_ip, server_port, "nodisplay", (char *)0);
 						fprintf(stderr,"Error On Executing the executable\n");
 						exit(1);	
 					}
 					num++;
+					//in parent push the pid
 					pidlist.push_back(pid);
 				}
+				//wait for all pids pushed
 				for(int i = 0;i<num;i++)waitpid(pidlist[i] ,&status, 0);
 				pidlist.clear();
 			}
@@ -179,11 +190,12 @@ void run(void *cmd)
 			{	
 				pid = fork();
 				if(pid ==0)
-				{
+				{	//execute
 					execv("client", ecmd->argv);
 					fprintf(stderr,"Error on execution of Command\n");
 					exit(1);
 				}
+				//wait for the pid
 				else waitpid(pid, &status, 0);
 			}
 			//background
@@ -195,15 +207,15 @@ void run(void *cmd)
 					strcpy(ecmd->argv[4], "nodisplay");
 					//set the group id
 					setpgrp();
-
+					//execute
 					execv("client",ecmd->argv);
 					exit(1);
-				}
+				}//no wait .. append the pid to backgrnd list
 				else if(pid>0){
 					bpid.insert(pid);
 				}
 			}
-			//everything else
+			//everything else // linux commands
 			else if((pid = fork())==0)
 			{
 					execvp(ecmd->argv[0], ecmd->argv);
@@ -214,6 +226,7 @@ void run(void *cmd)
 			break;
 
 		case PIPE:
+		//type cast passed cmd argument to pipecmd type
 			pcmd = (struct pipecmd *)cmd;
 			if( pipe(p)<0)
 			{
@@ -224,25 +237,28 @@ void run(void *cmd)
 			int pid2;
 			if((pid =fork())==0)
 			{	
-				close(1);
-				dup(p[1]);
-				close(p[0]);
+				close(1);	//close output
+				dup(p[1]);	//dup stdout to p[1]
+				close(p[0]);	//close both pipes
 				close(p[1]);
+				//execute left
 				execv("client", pcmd->left->argv);
 				
 			}
 			//reader process
 			if((pid2 = fork())==0)
 			{	
-				close(0);
-				dup(p[0]);
-				close(p[0]);
+				close(0);	//close stdin
+				dup(p[0]);	//make p[0] to stdin
+				close(p[0]);	//close pipe
 				close(p[1]);
+				//execute right
 				execvp(pcmd->right->argv[0], pcmd->right->argv);
 				
 			}
 			close(p[0]);
 			close(p[1]);
+			//wait for both process
 			waitpid(pid, &status, 0);
 			waitpid(pid2, &status, 0);
 			break;
@@ -252,10 +268,12 @@ void run(void *cmd)
 			
 			if((pid = fork())==0)
 			{
+				//open file
 				int fd = open(rcmd->file, O_RDWR | O_CREAT , S_IRUSR | S_IWUSR);
-				
+				//close stdout and redirect 1 to fd
 				dup2(fd, 1);
 				close(fd);
+				//execute
 				execv("client", rcmd->argv);
 				exit(1);
 			}
@@ -267,6 +285,7 @@ void run(void *cmd)
 //
 
 //Command Parsing
+//check for symbol
 int type(char **start)
 {	
 	char **sep = start;
@@ -295,6 +314,7 @@ struct cmd * parse(char **tokens)
 	{
 		case EXEC:
 			cmd.type = EXEC;
+			//single or backgrnd
 			if(strcmp(tokens[0],"getfl")==0 || strcmp(tokens[0],"getbg")==0)
 			{
 				int i = 0;
@@ -321,6 +341,8 @@ struct cmd * parse(char **tokens)
 				run((void *)&cmd);
 				
 			}
+			//sequential
+			//command arguments setup
 			else if(strcmp(tokens[0],"getsq")==0)
 			{	
 				int i =1;
@@ -348,6 +370,8 @@ struct cmd * parse(char **tokens)
 				}
 
 			}
+			//parallel 
+			//command arguments setup
 			else if(strcmp(tokens[0],"getpl")==0)
 			{
 				int i = 0;
@@ -380,9 +404,12 @@ struct cmd * parse(char **tokens)
 
 		case PIPE:
 			pcmd.type = PIPE;
-			
+			//PIPE in getfl
+			//command arguments setup
+
 			if(strcmp(tokens[0], "getfl")==0)
-			{
+			{	
+				//save left part in cmd->left
 				pcmd.left = new struct execcmd;
 				pcmd.left->type = EXEC;
 				int i = 0;
@@ -399,6 +426,7 @@ struct cmd * parse(char **tokens)
 					break;
 				}
 				int temp = i;
+				//copy ip , port and display args
 				pcmd.left->argv[i] = new char[MAX_TOKEN_SIZE];
 				pcmd.left->argv[i+1] = new char[MAX_TOKEN_SIZE];
 				pcmd.left->argv[i+2] = new char[MAX_TOKEN_SIZE];
@@ -408,7 +436,7 @@ struct cmd * parse(char **tokens)
 				strcpy(pcmd.left->argv[i+2], "display");
 				pcmd.left->argv[i+3]=NULL;
 
-				//second
+				//second save right in pcmd -> right
 				pcmd.right = new struct execcmd;
 				pcmd.right->type = EXEC;
 				i = 0;
@@ -430,21 +458,24 @@ struct cmd * parse(char **tokens)
 
 		case REDIR:
 			rcmd.type = REDIR;
+			//getfl and >
 			if(strcmp(tokens[0], "getfl")==0)
 			{	
 				int i = 0;
-				
+				//copy all args till >
 				while(tokens[i]!=NULL && strcmp(tokens[i],">" )!=0)
 				{	
 					rcmd.argv[i] = new char[MAX_TOKEN_SIZE];
 					strcpy(rcmd.argv[i],tokens[i]);
 					i++; 
 				}
+				//check for extra or less args
 				if(i!=2 || tokens[i+1] ==NULL)
 				{	
 					fprintf(stderr, "Invalid arguments\n");
 					break;
 				}
+				//copy file name and ip port and display attrs
 				rcmd.file = new char[64];
 				strcpy(rcmd.file, tokens[i+1]);
 				rcmd.argv[i] = new char[MAX_TOKEN_SIZE];
@@ -457,6 +488,7 @@ struct cmd * parse(char **tokens)
 				strcpy(rcmd.argv[i+1], server_port);
 				strcpy(rcmd.argv[i+2], "display");
 
+				//call run based on the commands setup
 				run((void*)&rcmd);
 				//free memory
 				delete[] rcmd.file;
@@ -595,6 +627,7 @@ int main()
 			(it->second)(tokens);
 		}
 		else {
+			//external executables 
 			parse(tokens);
 		}
 			
