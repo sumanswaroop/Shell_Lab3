@@ -8,11 +8,13 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/signal.h>
 #include <string.h>
 #include <string>
 #include <fcntl.h>
 #include <iostream>
-
+#include <set>
+#include <vector>
 #include "make-tokens.h"
 
 using namespace std;
@@ -47,6 +49,10 @@ typedef int (*FnPtr)(char **);
 char server_ip[16];
 char server_port[5];
 int status;
+
+//background process list
+set<int> bpid;
+
 //define all builtins
 int cd_builtin(char **args)
 {
@@ -78,6 +84,7 @@ int server_setup(char **args)
 int exit(char **args)
 {	
 	//reap all children
+	kill(0, SIGTERM);
 	exit(0);
 }
 //map builtins
@@ -119,6 +126,7 @@ void run(void *cmd)
 {	
 	//pipe
 	int p[2];
+	int pid;
 	if(cmd ==NULL)
 		exit(0);
 	struct execcmd *ecmd;
@@ -138,47 +146,60 @@ void run(void *cmd)
 			else if(strcmp(ecmd->argv[0],"getpl")==0)
 			{	
 				int num = 1;
+				vector<int> pidlist;
 				while(ecmd->argv[num]!=NULL)
-				{
-					if(fork()==0)
+				{	
+					pid=fork();
+
+					if(pid ==0)
 					{
 						execl("client", ecmd->argv[num], server_ip, server_port, "nodisplay", (char *)0);
 						fprintf(stderr,"Error On Executing the executable\n");
 						exit(1);	
 					}
 					num++;
+					pidlist.push_back(pid);
 				}
-				for(int i = 0;i<num;i++)wait(NULL);
+				for(int i = 0;i<num;i++)waitpid(pidlist[i] ,&status, 0);
+				pidlist.clear();
 			}
 			//sequential or one
 			else if(strcmp(ecmd->argv[0],"getfl")==0 || strcmp(ecmd->argv[0],"getsq")==0 )
-			{
-				if(fork()==0)
+			{	
+				pid = fork();
+				if(pid ==0)
 				{
 					execv("client", ecmd->argv);
 					fprintf(stderr,"Error on execution of Command\n");
 					exit(1);
 				}
-				else wait(&status);
+				else waitpid(pid, &status, 0);
 			}
 			//background
 			else if(strcmp(ecmd->argv[0],"getbg")==0)
-			{
-				if(fork()==0)
+			{	
+				pid = fork();
+				if(pid==0)
 				{	
 					strcpy(ecmd->argv[4], "nodisplay");
+					//set the group id
+					setpgrp();
+
 					execv("client",ecmd->argv);
 					exit(1);
 				}
+				else if(pid>0){
+					bpid.insert(pid);
+				}
 			}
 			//everything else
-			else if(fork()==0)
+			else if((pid = fork())==0)
 			{
 					execvp(ecmd->argv[0], ecmd->argv);
 					fprintf(stderr,"Unknown Command\n");
 					exit(1);
 			}
-			else wait(&status);
+			else waitpid(pid, &status, 0);
 			break;
 
 		case PIPE:
@@ -189,8 +210,8 @@ void run(void *cmd)
 					return;
 			}
 			//writer process
-
-			if(fork()==0)
+			int pid2;
+			if((pid =fork())==0)
 			{	
 				close(1);
 				dup(p[1]);
@@ -200,7 +221,7 @@ void run(void *cmd)
 				
 			}
 			//reader process
-			if(fork()==0)
+			if((pid2 = fork())==0)
 			{	
 				close(0);
 				dup(p[0]);
@@ -211,8 +232,8 @@ void run(void *cmd)
 			}
 			close(p[0]);
 			close(p[1]);
-			wait(NULL);
-			wait(NULL);
+			waitpid(pid, &status, 0);
+			waitpid(pid2, &status, 0);
 			break;
 
 		case REDIR:
@@ -469,6 +490,38 @@ struct cmd * parse(char **tokens)
 	}
 }
 
+void sig_handler(int sig)
+{	
+	int status;
+	int pid;
+	//handle's CTRL + C
+	if(sig==SIGINT)
+	{	
+		//reap foreground process
+		while((pid = waitpid(-1, &status, WNOHANG))>0){}
+	}//signal from child exit
+	else if(sig == SIGCHLD)
+	{	
+		//remove zombies
+		
+		while((pid = waitpid(-1, &status, WNOHANG))>0){
+			//if a background process
+			if(bpid.find(pid) != bpid.end())
+			{
+				printf("Background Process %d Completed\n",pid);
+				bpid.erase(pid);
+			}
+		}
+
+	}//termination signal
+	else if(sig == SIGTERM)
+	{
+		//reap zombies and exit
+		//reap foreground process
+		while((pid = waitpid(-1, &status, WNOHANG))>0){}
+		exit(0);
+	}
+}
 
 int main()
 {
@@ -485,6 +538,10 @@ int main()
 	//builtins mapping
 	map< string , FnPtr > builtins;
 	map_builtin(builtins);
+
+	//setup signal handler    
+	signal(SIGINT, sig_handler);
+	signal(SIGCHLD, sig_handler);
 
 	while(1)
 	{	

@@ -1,4 +1,4 @@
 1)Background process termination print
 2)Kill all zombie bg process
 3)ctlr+ c should kill all foreground process
-3)exit command should kill all foregrounf and bg process
+4)exit command should kill all foregrounf and bg process
