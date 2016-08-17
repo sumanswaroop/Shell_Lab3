@@ -85,10 +85,15 @@ int exit(char **args)
 {		
 	//kill all background process
 	set<int>::iterator it;
+	vector<int> temp;
 	for(it = bpid.begin();it!=bpid.end();it++)
 	{
-		kill(*it, SIGTERM);
+		int a = *it;
+		temp.push_back(a);
+		kill(a, SIGINT);
+		
 	}
+	for(int i = 0;i<temp.size();i++)bpid.erase(temp[i]);
 	//reap all children process in same group
 	kill(0, SIGTERM);
 	exit(0);
@@ -123,7 +128,7 @@ struct redircmd
 {
 	int type;
 	char **argv = new char*[64];
-	char *file = new char[64];
+	char *file;
 };
 
 
@@ -159,7 +164,7 @@ void run(void *cmd)
 
 					if(pid ==0)
 					{
-						execl("client", ecmd->argv[num], server_ip, server_port, "display", (char *)0);
+						execl("client", "client", ecmd->argv[num], server_ip, server_port, "nodisplay", (char *)0);
 						fprintf(stderr,"Error On Executing the executable\n");
 						exit(1);	
 					}
@@ -243,17 +248,18 @@ void run(void *cmd)
 			break;
 
 		case REDIR:
-			if(fork()==0)
+			
+			if((pid = fork())==0)
 			{
-				int fd = open(rcmd->file, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+				printf("%s", rcmd->file);
+				int fd = open(rcmd->file, O_RDWR | O_CREAT , S_IRUSR | S_IWUSR);
 				dup2(fd, 1);
 				close(fd);
 				execv(rcmd->argv[0], rcmd->argv);
+				exit(1);
 			}
-			wait(NULL);
+			waitpid(pid, &status,0);
 
-			break;
-		case BACK:
 			break;
 
 	}
@@ -298,6 +304,7 @@ struct cmd * parse(char **tokens)
 	struct execcmd cmd;
 	struct pipecmd pcmd;
 	struct redircmd rcmd;
+
 	switch(tok)
 	{
 		case EXEC:
@@ -314,7 +321,7 @@ struct cmd * parse(char **tokens)
 				}
 				if(i!=2)
 				{
-					fprintf(stderr, "Invalid Number of Arguments");
+					fprintf(stderr, "Invalid Number of Arguments\n");
 					break;
 				}
 
@@ -350,7 +357,7 @@ struct cmd * parse(char **tokens)
 				}
 				if(i==1)
 				{
-					fprintf(stderr, "Invalid Number of Arguments");
+					fprintf(stderr, "Invalid Number of Arguments\n");
 					break;
 				}
 
@@ -366,6 +373,9 @@ struct cmd * parse(char **tokens)
 					i++;
 				}
 				if(i<2)
+				{
+					fprintf(stderr,"Invalid Number of Arguments\n");
+				}
 				cmd.argv[i]=NULL;
 				run((void *)&cmd);
 			}
@@ -399,7 +409,7 @@ struct cmd * parse(char **tokens)
 				//check if more than one file
 				if(i>2)
 				{
-					fprintf(stderr, "Invalid Number of files given");
+					fprintf(stderr, "Invalid Number of files given\n");
 					break;
 				}
 				int temp = i;
@@ -437,27 +447,32 @@ struct cmd * parse(char **tokens)
 			{	
 				int i = 0;
 				rcmd.type = REDIR;
+
 				while(tokens[i]!=NULL && strcmp(tokens[i],">" )!=0)
 				{	
 					rcmd.argv[i] = new char[MAX_TOKEN_SIZE];
 					strcpy(rcmd.argv[i],tokens[i]);
 					i++; 
 				}
-				if(i!=2 || tokens[i+1] !=NULL)
+				if(i!=2 || tokens[i+1] ==NULL)
 				{	
 					fprintf(stderr, "Invalid arguments\n");
 					break;
 				}
+				rcmd.file = new char[64];
+				strcpy(rcmd.file, tokens[i+1]);
 				rcmd.argv[i] = new char[MAX_TOKEN_SIZE];
+				rcmd.argv[i+1] = new char[MAX_TOKEN_SIZE];
+				rcmd.argv[i+2] = new char[MAX_TOKEN_SIZE];
+				
 				strcpy(rcmd.argv[i], server_ip);
-				strcpy(rcmd.argv[i], server_port);
-				strcpy(rcmd.argv[i], "display");
-				i++;
-				strcpy(rcmd.file, tokens[i]);
-
+				
+				strcpy(rcmd.argv[i+1], server_port);
+				strcpy(rcmd.argv[i+2], "display");
 
 				run((void*)&rcmd);
 				//free memory
+				delete[] rcmd.file;
 			
 			}
 			else{
@@ -498,8 +513,7 @@ struct cmd * parse(char **tokens)
 		j = 0;
 		while(rcmd.argv[j]!=NULL)free(rcmd.argv[j]);
 		if(rcmd.argv!=NULL)free(rcmd.argv);
-		j = 0;
-		if(rcmd.argv!=NULL)free(rcmd.file);
+		if(rcmd.file!=NULL)free(rcmd.file);
 	}
 }
 
@@ -555,7 +569,7 @@ int main()
 	//setup signal handler    
 	signal(SIGINT, sig_handler);
 	signal(SIGCHLD, sig_handler);
-
+	signal(SIGTERM, sig_handler);
 	while(1)
 	{	
 		//print directory
