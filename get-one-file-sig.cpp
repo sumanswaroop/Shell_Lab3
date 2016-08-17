@@ -8,11 +8,14 @@
 #include <unistd.h>
 #include <iostream>
 #include <cstdlib>
+#include <string.h>
+#include <string>
 
 using namespace std;
-
-void my_handler(int s){
-           printf("Caught signal %d\n",s);
+ int received_size=0;
+void sig_handler(int s){
+           printf("Received SIGINT;");
+           printf("Downloaded %d bytes so far\n", received_size);
            exit(1); 
 
 }
@@ -27,7 +30,7 @@ int main(int argc, char *argv[])
 {
     int sockfd, portno, n;
     bool display;
-    if(argv[4]=="display") display=1;
+    if(strcmp(argv[4],"display")==0) display=1;
     else display=0;
 
     struct sockaddr_in serv_addr;
@@ -41,13 +44,10 @@ int main(int argc, char *argv[])
 
     struct sigaction sigIntHandler;
 
-   sigIntHandler.sa_handler = my_handler;
-   sigemptyset(&sigIntHandler.sa_mask);
-   sigIntHandler.sa_flags = 0;
-
-   sigaction(SIGINT, &sigIntHandler, NULL);
-
-   pause();
+    if (signal(SIGINT, sig_handler) == SIG_ERR)
+    {
+    	fprintf(stderr,"Signal Handler Override failure\n");
+    }
 
     /* create socket, get sockfd handle */
 
@@ -88,12 +88,12 @@ int main(int argc, char *argv[])
     bzero(buffer,256);
 
     /* read reply from server */
-
-    int received_size=0,curr_size;
+   int curr_size;
     //Receive File
-    while((curr_size=read(sockfd, buffer, 1023)>0)){
-        if(display) {cout<<buffer;}
-      received_size+=curr_size;
+   char buffer_data[1024];
+    while(((curr_size=read(sockfd, buffer_data, 1023))>0)){
+       received_size+=curr_size;
+        if(display) {cout<<buffer_data;}
     }
     if(received_size==0)
         fprintf(stderr, "Requested File could not be served by server\n");

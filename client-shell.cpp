@@ -76,8 +76,9 @@ int server_setup(char **args)
 	return 0;
 }
 int exit(char **args)
-{
-	
+{	
+	//reap all children
+	exit(0);
 }
 //map builtins
 void map_builtin(map<string , FnPtr > &builtins)
@@ -141,7 +142,9 @@ void run(void *cmd)
 				{
 					if(fork()==0)
 					{
-						execl("client", ecmd->argv[num], server_ip, server_port, "nodisplay", (char *)0);		
+						execl("client", ecmd->argv[num], server_ip, server_port, "nodisplay", (char *)0);
+						fprintf(stderr,"Error On Executing the executable\n");
+						exit(1);	
 					}
 					num++;
 				}
@@ -153,6 +156,8 @@ void run(void *cmd)
 				if(fork()==0)
 				{
 					execv("client", ecmd->argv);
+					fprintf(stderr,"Error on execution of Command\n");
+					exit(1);
 				}
 				else wait(&status);
 			}
@@ -163,11 +168,16 @@ void run(void *cmd)
 				{	
 					strcpy(ecmd->argv[4], "nodisplay");
 					execv("client",ecmd->argv);
+					exit(1);
 				}
 			}
 			//everything else
 			else if(fork()==0)
-				execvp(ecmd->argv[0], ecmd->argv);
+			{
+					execvp(ecmd->argv[0], ecmd->argv);
+					fprintf(stderr,"Unknown Command\n");
+					exit(1);
+			}
 			else wait(&status);
 			break;
 
@@ -362,6 +372,7 @@ struct cmd * parse(char **tokens)
 				pcmd.left->argv[i] = new char[MAX_TOKEN_SIZE];
 				pcmd.left->argv[i+1] = new char[MAX_TOKEN_SIZE];
 				pcmd.left->argv[i+2] = new char[MAX_TOKEN_SIZE];
+				
 				strcpy(pcmd.left->argv[i], server_ip);
 				strcpy(pcmd.left->argv[i+1], server_port);
 				strcpy(pcmd.left->argv[i+2], "display");
