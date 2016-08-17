@@ -127,8 +127,9 @@ struct pipecmd
 struct redircmd
 {
 	int type;
-	char **argv = new char*[64];
 	char *file;
+	char **argv = new char*[64];
+	
 };
 
 
@@ -143,7 +144,6 @@ void run(void *cmd)
 	struct execcmd *ecmd;
 	struct pipecmd *pcmd;
 	struct redircmd *rcmd;
-	map<string ,string> executables;
 
 	switch(((struct cmd *)cmd)->type)
 	{
@@ -248,18 +248,18 @@ void run(void *cmd)
 			break;
 
 		case REDIR:
+			rcmd = (struct redircmd *)cmd;
 			
 			if((pid = fork())==0)
 			{
-				printf("%s", rcmd->file);
 				int fd = open(rcmd->file, O_RDWR | O_CREAT , S_IRUSR | S_IWUSR);
+				
 				dup2(fd, 1);
 				close(fd);
-				execv(rcmd->argv[0], rcmd->argv);
+				execv("client", rcmd->argv);
 				exit(1);
 			}
 			waitpid(pid, &status,0);
-
 			break;
 
 	}
@@ -426,14 +426,14 @@ struct cmd * parse(char **tokens)
 				fprintf(stderr, "Unkown Command");
 			}
 		 
+		 break;
 
 		case REDIR:
-
+			rcmd.type = REDIR;
 			if(strcmp(tokens[0], "getfl")==0)
 			{	
 				int i = 0;
-				rcmd.type = REDIR;
-
+				
 				while(tokens[i]!=NULL && strcmp(tokens[i],">" )!=0)
 				{	
 					rcmd.argv[i] = new char[MAX_TOKEN_SIZE];
@@ -450,6 +450,7 @@ struct cmd * parse(char **tokens)
 				rcmd.argv[i] = new char[MAX_TOKEN_SIZE];
 				rcmd.argv[i+1] = new char[MAX_TOKEN_SIZE];
 				rcmd.argv[i+2] = new char[MAX_TOKEN_SIZE];
+				rcmd.argv[i+3] = NULL;
 				
 				strcpy(rcmd.argv[i], server_ip);
 				
@@ -459,7 +460,7 @@ struct cmd * parse(char **tokens)
 				run((void*)&rcmd);
 				//free memory
 				delete[] rcmd.file;
-			
+				
 			}
 			else{
 				fprintf(stderr, "Unkown Command");
@@ -486,10 +487,15 @@ struct cmd * parse(char **tokens)
 	if(tok==PIPE)
 	{
 		j = 0;
-		while(pcmd.left->argv[j]!=NULL)free(pcmd.left->argv[j]);
+		while(pcmd.left->argv[j]!=NULL){
+			free(pcmd.left->argv[j]);
+			j++;
+		}
 		if(pcmd.left!=NULL)free(pcmd.left);
 		j = 0;
-		while(pcmd.right->argv[j]!=NULL)free(pcmd.right->argv[j]);
+		while(pcmd.right->argv[j]!=NULL){
+			free(pcmd.right->argv[j]);j++;
+		}
 		if(pcmd.right!=NULL)free(pcmd.right);
 	}
 
@@ -497,9 +503,13 @@ struct cmd * parse(char **tokens)
 	if(tok==REDIR)
 	{
 		j = 0;
-		while(rcmd.argv[j]!=NULL)free(rcmd.argv[j]);
+		while(rcmd.argv[j]!=NULL){
+			free(rcmd.argv[j]);
+			j++;
+		}
 		if(rcmd.argv!=NULL)free(rcmd.argv);
-		if(rcmd.file!=NULL)free(rcmd.file);
+		
+		
 	}
 }
 
